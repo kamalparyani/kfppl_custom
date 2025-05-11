@@ -136,6 +136,12 @@ doctype_js = {
 # override_doctype_class = {
 # 	"ToDo": "custom_app.overrides.CustomToDo"
 # }
+doc_events = {
+    "Sales Invoice": {
+        "validate": "kfppl_custom.custom_folder.sales_invoice.sales_invoice.set_payment_terms_template"
+    }
+}
+
 
 # Document Events
 # ---------------
