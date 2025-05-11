@@ -1,12 +1,17 @@
-function log_payment_terms_from_first_item(frm) {
+function set_payment_terms_from_first_item(frm) {
     const firstItem = frm.doc.items && frm.doc.items[0];
 
     if (firstItem && firstItem.item_code) {
         frappe.db.get_doc('Item', firstItem.item_code).then(itemDoc => {
             if (itemDoc.item_group) {
                 frappe.db.get_doc('Item Group', itemDoc.item_group).then(groupDoc => {
+                    const template = groupDoc.custom_payment_terms_template;
                     console.log("Item Group:", itemDoc.item_group);
-                    console.log("Payment Terms Template:", groupDoc.custom_payment_terms_template);
+                    console.log("Payment Terms Template:", template);
+
+                    if (template) {
+                        frm.set_value('payment_terms_template', template);
+                    }
                 }).catch(err => {
                     console.error("Error fetching Item Group:", err);
                 });
@@ -17,6 +22,7 @@ function log_payment_terms_from_first_item(frm) {
     }
 }
 
+// Trigger when item_code is manually changed in the first row
 frappe.ui.form.on('Sales Invoice Item', {
     item_code: function(frm, cdt, cdn) {
         const row = locals[cdt][cdn];
@@ -24,18 +30,19 @@ frappe.ui.form.on('Sales Invoice Item', {
 
         if (firstItem && row.name === firstItem.name) {
             console.log("First item changed:", row.item_code);
-            log_payment_terms_from_first_item(frm);
+            set_payment_terms_from_first_item(frm);
         } else {
             console.log("Not the first item, skipping");
         }
     }
 });
 
-// Trigger after Delivery Note pull
+// Trigger after pulling items from Sales Order / Delivery Note
 frappe.ui.form.on('Sales Invoice', {
     refresh: function(frm) {
         setTimeout(() => {
-            log_payment_terms_from_first_item(frm);
+            set_payment_terms_from_first_item(frm);
         }, 500);
     }
 });
+
