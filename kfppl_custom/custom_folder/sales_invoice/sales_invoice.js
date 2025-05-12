@@ -8,7 +8,7 @@ function force_set_payment_terms_template(frm) {
                 frappe.db.get_doc('Item Group', itemDoc.item_group).then(groupDoc => {
                     const template = groupDoc.custom_payment_terms_template;
                     if (template) {
-                        if (!frm.doc.manual_payment_terms) {
+                        if (!frm.doc.custom_manual_payment_terms) {
                             console.log("Auto-setting Payment Terms Template:", template);
                             frm.set_value('payment_terms_template', template);
                         } else {
@@ -56,6 +56,6 @@ frappe.ui.form.on('Sales Invoice', {
 
     manual_payment_terms: function(frm) {
         // Optional UX: enable/disable the field based on checkbox
-        frm.toggle_enable('payment_terms_template', frm.doc.manual_payment_terms);
+        frm.toggle_enable('payment_terms_template', frm.doc.custom_manual_payment_terms);
     }
 });
