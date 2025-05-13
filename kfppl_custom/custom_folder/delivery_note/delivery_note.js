@@ -32,15 +32,16 @@ function fetchOverdue(frm, source) {
         },
         callback: function(r) {
             if (r.message?.length) {
-                if (source = "customer") {
+                 if (source === "customer") {
                     frappe.msgprint(__("Customer has overdue invoices:") + "<br>" +
                         r.message.map(inv =>
                             `<b>${inv.name}</b>: ₹${inv.outstanding_amount} (Due on ${frappe.datetime.str_to_user(inv.due_date)})`
                         ).join("<br>")
                     );
+                    
                 }
-                if (source = "refresh") {
-                    frm.dashboard.set_headline_alert("This Customer Has Overdue Invoices.", "red")
+                if ( source === "refresh") {
+                    frm.dashboard.set_headline_alert("This Customer Has Overdue Invoices", "red");
                     frm.disable_save();
                 }
             } else {
