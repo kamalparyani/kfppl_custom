@@ -1,5 +1,10 @@
 // Always set payment terms from first item (unless manual override is checked)
 function force_set_payment_terms_template(frm) {
+
+    if (frm.doc.docstatus !== 0) {
+        console.log("Document is submitted. Skipping payment terms auto-set.");
+        return;
+    }
     const firstItem = frm.doc.items && frm.doc.items[0];
 
     if (firstItem && firstItem.item_code) {
