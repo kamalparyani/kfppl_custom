@@ -13,12 +13,14 @@ function force_set_payment_terms_template(frm) {
                 frappe.db.get_doc('Item Group', itemDoc.item_group).then(groupDoc => {
                     const template = groupDoc.custom_payment_terms_template;
                     if (template) {
-                        if (!frm.doc.custom_manual_payment_terms) {
+                       
+                        if (!frm.doc.custom_manual_payment_terms && !frm.doc.is_return) {
                             console.log("Auto-setting Payment Terms Template:", template);
                             frm.set_value('payment_terms_template', template);
                         } else {
-                            console.log("Manual override enabled — not setting template.");
+                            console.log("Manual override enabled or is_return — not setting template.");
                         }
+                        
                     }
                 });
             }
