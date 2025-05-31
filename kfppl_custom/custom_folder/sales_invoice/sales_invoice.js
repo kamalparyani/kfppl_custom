@@ -78,6 +78,17 @@ frappe.ui.form.on("Sales Invoice", {
     }
 });
 
+frappe.ui.form.on("Sales Invoice", {
+    is_return: function(frm) {
+        fetchOverdue(frm, "refresh");
+    }
+});
+
+frappe.ui.form.on("Sales Invoice", {
+    custom_disable_overdue_check: function(frm) {
+        fetchOverdue(frm, "refresh");
+    }
+});
 
 
 function fetchOverdue(frm, source) {
@@ -115,6 +126,20 @@ function fetchOverdue(frm, source) {
                     frm.disable_save();
                      }
                 }
+                if ( source === "is_return" ) {
+                    frm.dashboard.set_headline_alert("This Customer Has Overdue Invoices", "red")
+                    if (!frm.doc.custom_disable_overdue_check && !frm.doc.is_return) {
+                   frm.disable_save();
+                   }
+                }
+                if ( source === "custom_disable_overdue_check" ) {
+                    frm.dashboard.set_headline_alert("This Customer Has Overdue Invoices", "red")
+                    if (!frm.doc.custom_disable_overdue_check && !frm.doc.is_return) {
+                   frm.disable_save();
+                   }
+                }
+
+
             } else {
                 console.log("No overdue invoices for this customer.");
             }
