@@ -111,7 +111,7 @@ function fetchOverdue(frm, source) {
                 }
                 if ( source === "refresh") {
                     frm.dashboard.set_headline_alert("This Customer Has Overdue Invoices", "red")
-                     if (!frm.doc.custom_disable_overdue_check) {
+                     if (!frm.doc.custom_disable_overdue_check && !frm.doc.is_return) {
                     frm.disable_save();
                      }
                 }
