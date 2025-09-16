@@ -31,8 +31,9 @@ function force_set_payment_terms_template(frm) {
             // Set Grace Days (independent of manual_payment_terms)
             if (graceDays !== undefined && graceDays !== null) {
                 console.log("Auto-setting custom_grace_days:", graceDays);
-                frm.set_value('custom_grace_days', graceDays); // triggers overdue check
+                frm.set_value('custom_grace_days', graceDays); // will trigger overdue check via handler
             } else {
+                // If Item Group has no value, clear on SI
                 frm.set_value('custom_grace_days', null);
             }
         });
@@ -43,58 +44,43 @@ function force_set_payment_terms_template(frm) {
 // Overdue Check (with Grace Days)
 // ----------------------------------
 
-// Robust: ensure dashboard exists & is visible
-function ensureDashboardVisible(frm, cb) {
-    const MAX_TRIES = 20, INTERVAL = 50;
-    let tries = 0;
+// Robust readiness & visibility check for dashboard
+function waitForDashboardVisible(frm, cb, tries = 0) {
+    const MAX_TRIES = 20; // ~1s max (20 * 50ms)
+    const next = () => waitForDashboardVisible(frm, cb, tries + 1);
 
-    const tick = () => {
-        if (!frm.dashboard || !frm.dashboard.wrapper) {
-            if (tries++ < MAX_TRIES) return setTimeout(tick, INTERVAL);
-            return cb(); // give up but still call
-        }
+    if (!frm.dashboard || !frm.dashboard.wrapper) {
+        return setTimeout(next, 50);
+    }
 
-        try {
-            frm.dashboard.show && frm.dashboard.show();
-            const $wrap = $(frm.dashboard.wrapper);
-            $wrap.removeClass('hidden d-none hide').css('display', '');
-            $wrap.closest('.form-dashboard').removeClass('hidden d-none hide').css('display', '');
-        } catch (e) { /* noop */ }
+    try {
+        // Make sure the dashboard is not hidden
+        frm.dashboard.show && frm.dashboard.show();
+        // Remove common hidden classes if present
+        const $w = $(frm.dashboard.wrapper);
+        $w.removeClass('hidden d-none').css('display', ''); // clear inline display:none
+        $w.closest('.form-dashboard').removeClass('hidden d-none');
+    } catch (e) { /* noop */ }
 
-        const el = frm.dashboard.wrapper[0];
-        const visible = el && document.body.contains(el) && el.offsetParent !== null;
-        if (!visible && tries++ < MAX_TRIES) return setTimeout(tick, INTERVAL);
+    // Ensure wrapper is in DOM and visible
+    const el = frm.dashboard.wrapper && frm.dashboard.wrapper[0];
+    const isVisible = el && document.body.contains(el) && el.offsetParent !== null;
 
-        frappe.after_ajax(() => cb());
-    };
-    tick();
+    if (!isVisible && tries < MAX_TRIES) {
+        return setTimeout(next, 50);
+    }
+
+    // After AJAX (render cycle) then run callback
+    frappe.after_ajax(() => cb());
 }
 
-// Primary headline writer: uses set_headline (HTML pill), then tries set_headline_alert
 function setHeadlineOnce(frm, text, color) {
-    if (frm._overdue_headline_text === text && frm._overdue_headline_color === color) return;
-
-    ensureDashboardVisible(frm, () => {
-        try {
-            frm.dashboard.clear_headline && frm.dashboard.clear_headline();
-        } catch (e) { /* noop */ }
-
-        // Render with a stable HTML pill (works even if alert APIs are finicky)
-        const pillColor = (color || 'blue').toLowerCase();
-        const html = `
-            <div class="flex items-center" style="gap:8px;">
-                <span class="indicator-pill ${pillColor}">${frappe.utils.escape_html(text)}</span>
-            </div>
-        `;
-        try {
-            frm.dashboard.set_headline ? frm.dashboard.set_headline(html) : null;
-        } catch (e) { /* noop */ }
-
-        // Best-effort: also raise the standard colored alert
-        try {
-            frm.dashboard.set_headline_alert && frm.dashboard.set_headline_alert(text, color);
-        } catch (e) { /* noop */ }
-
+    // Cache to avoid repainting same headline
+    if (frm._overdue_headline_text === text && frm._overdue_headline_color === color) {
+        return;
+    }
+    waitForDashboardVisible(frm, () => {
+        frm.dashboard.set_headline_alert(text, color);
         frm._overdue_headline_text  = text;
         frm._overdue_headline_color = color;
     });
@@ -110,7 +96,7 @@ function parseGrace(n) {
     return Number.isFinite(v) && v > 0 ? v : 0;
 }
 
-// Avoid duplicate popups on fresh forms
+// --- msgprint dedupe: avoid duplicate popups on new form load ---
 function shouldShowOverduePopup(frm, customer, invoiceNames) {
     const key = `${customer}|${invoiceNames.sort().join(',')}`;
     if (frm._overdue_last_popup_key === key) return false;
@@ -121,11 +107,11 @@ function shouldShowOverduePopup(frm, customer, invoiceNames) {
 function fetchOverdue(frm, source) {
     const customer = frm.doc.customer;
     if (!customer) {
-      //  setHeadlineOnce(frm, "No customer selected.", "orange");
+        setHeadlineOnce(frm, "No customer selected.", "orange");
         return;
     }
 
-    const defaultGrace = getGraceDays(frm); // fallback if old invoices lack custom_grace_days
+    const defaultGrace = getGraceDays(frm); // fallback if an older invoice has no custom_grace_days
     const today = frappe.datetime.get_today();
 
     frappe.call({
@@ -138,7 +124,7 @@ function fetchOverdue(frm, source) {
                 ["outstanding_amount", ">", 0],
                 ["due_date", "<", today]
             ],
-            fields: ["name", "due_date", "outstanding_amount", "custom_grace_days"]
+            fields: ["name", "due_date", "outstanding_amount", "custom_grace_days"] // per-invoice grace
         },
         callback: function(r) {
             const rows = Array.isArray(r.message) ? r.message : [];
@@ -147,14 +133,14 @@ function fetchOverdue(frm, source) {
             const withinGrace = [];
 
             rows.forEach(inv => {
-                const invGrace  = parseGrace(inv.custom_grace_days) || defaultGrace;
+                const invGrace  = parseGrace(inv.custom_grace_days) || defaultGrace; // prefer the invoice's own grace
                 const deadline  = frappe.datetime.add_days(inv.due_date, invGrace);
-                const isBeyond  = frappe.datetime.get_diff(today, deadline) > 0; // today > (due+grace)
+                const isBeyond  = frappe.datetime.get_diff(today, deadline) > 0; // today > (due + grace)
                 const enriched  = Object.assign({}, inv, { invGrace, deadline });
                 (isBeyond ? beyondGrace : withinGrace).push(enriched);
             });
 
-            // Popup on customer change only
+            // --- Msgprint (only when customer changes), de-duplicated & per-invoice grace ---
             if (source === "customer" && rows.length) {
                 const names = rows.map(x => x.name);
                 if (shouldShowOverduePopup(frm, customer, names)) {
@@ -169,7 +155,7 @@ function fetchOverdue(frm, source) {
                 }
             }
 
-            // Headline + gating
+            // --- Dashboard headline + save gating ---
             const allowBlock = !frm.doc.custom_disable_overdue_check && !frm.doc.is_return;
 
             if (beyondGrace.length) {
@@ -186,16 +172,18 @@ function fetchOverdue(frm, source) {
     });
 }
 
-// Debounce ONLY for 'refresh'
+// Debounce ONLY for 'refresh' to avoid duplicate paints; call immediate for other triggers.
 const fetchOverdueDebounced = frappe.utils.debounce(fetchOverdue, 400);
 
 // -----------------------------
 // Event Handlers
 // -----------------------------
+// Sales Invoice Item row events
 frappe.ui.form.on('Sales Invoice Item', {
     item_code: function(frm, cdt, cdn) {
         const row = locals[cdt][cdn];
         const firstItem = frm.doc.items && frm.doc.items[0];
+
         if (firstItem && row.name === firstItem.name) {
             console.log("First item selected or changed.");
             force_set_payment_terms_template(frm);
@@ -203,6 +191,7 @@ frappe.ui.form.on('Sales Invoice Item', {
     },
 
     items_remove: function(frm) {
+        // Delay ensures frm.doc.items is updated
         setTimeout(() => {
             const newFirst = frm.doc.items[0];
             if (!newFirst || !newFirst.item_code) {
@@ -217,37 +206,45 @@ frappe.ui.form.on('Sales Invoice Item', {
     }
 });
 
-// Consolidated Sales Invoice events (single block)
+// Consolidated Sales Invoice events (single block to avoid duplicate triggers)
 frappe.ui.form.on('Sales Invoice', {
+    // Runs after the form is painted; good place to show headline on brand-new docs
     onload_post_render: function(frm) {
         fetchOverdue(frm, "onload_post_render"); // immediate
     },
 
     refresh: function(frm) {
+        // Initial auto-set from first item (small delay lets child table render)
         setTimeout(() => {
             force_set_payment_terms_template(frm);
         }, 500);
+
+        // Overdue check (debounced only on refresh)
         fetchOverdueDebounced(frm, "refresh");
     },
 
     customer: function(frm) {
-        frm._overdue_last_popup_key = null; // reset dedupe
-        fetchOverdue(frm, "customer"); // immediate for visible headline
+        // Reset popup dedupe key when customer changes
+        frm._overdue_last_popup_key = null;
+        // Run immediately so the headline appears right after choosing the customer
+        fetchOverdue(frm, "customer");
     },
 
     is_return: function(frm) {
-        fetchOverdue(frm, "is_return");
+        fetchOverdue(frm, "is_return"); // immediate
     },
 
     custom_disable_overdue_check: function(frm) {
-        fetchOverdue(frm, "custom_disable_overdue_check");
+        fetchOverdue(frm, "custom_disable_overdue_check"); // immediate
     },
 
     custom_grace_days: function(frm) {
-        fetchOverdue(frm, "grace_change");
+        // Re-evaluate when grace days change (either manually or via Item Group auto-set)
+        fetchOverdue(frm, "grace_change"); // immediate
     },
 
     manual_payment_terms: function(frm) {
+        // Optional UX: enable/disable the field based on checkbox
         frm.toggle_enable('payment_terms_template', frm.doc.custom_manual_payment_terms);
     }
 });
