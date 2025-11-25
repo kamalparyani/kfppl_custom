@@ -1,25 +1,25 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "field:sales_partner_name",
+ "autoname": "field:purchase_partner_name",
  "creation": "2025-09-16 21:06:08.477196",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "sales_partner_name"
+  "purchase_partner_name"
  ],
  "fields": [
   {
-   "fieldname": "sales_partner_name",
+   "fieldname": "purchase_partner_name",
    "fieldtype": "Data",
-   "label": "Sales Partner Name",
+   "label": "Purchase Partner Name",
    "unique": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-09-16 21:35:00.976502",
+ "modified": "2025-09-17 10:12:15.121398",
  "modified_by": "Administrator",
  "module": "Kfppl Custom",
  "name": "Purchase Partner",
