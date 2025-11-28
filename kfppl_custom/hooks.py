@@ -143,7 +143,9 @@ doc_events = {
         "validate": "kfppl_custom.custom_folder.sales_invoice.sales_invoice.set_payment_terms_template"
     },
     "Delivery Note": {
-        "before_submit": "kfppl_custom.custom_folder.delivery_note.delivery_note.before_submit"
+        "before_submit": "kfppl_custom.custom_folder.delivery_note.delivery_note.dn_credit_limit",
+        "before_save": "kfppl_custom.custom_folder.delivery_note.delivery_note.dn_credit_limit"
+
     }
 }
 

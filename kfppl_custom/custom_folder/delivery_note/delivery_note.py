@@ -1,7 +1,7 @@
 import frappe
 from frappe.utils import flt
 
-def before_submit(doc, method):
+def dn_credit_limit(doc, method):
     """
     Enforce customer credit limit at Delivery Note submit.
 
