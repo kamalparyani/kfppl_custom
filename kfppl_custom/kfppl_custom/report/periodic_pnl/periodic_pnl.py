@@ -20,6 +20,29 @@ def _as_list(v):
     return v if isinstance(v, list) else [v]
 
 
+
+def get_parent_accounts(account):
+    parent_accounts = []
+    while True:
+        parent_account = frappe.db.get_value("Account", account, "parent_account")
+        if not parent_account:
+            break
+        parent_accounts.insert(0, parent_account)
+        if parent_account in ["Income - KFPPL", "Expenses - KFPPL"]:
+            break
+        account = parent_account
+    return parent_accounts
+
+def get_columns():
+    return [
+        {"fieldname": "account", "label": _("Account"), "fieldtype": "Data", "hidden": 1},
+        {"fieldname": "parent_account", "label": _("Account"), "fieldtype": "Data", "width": 700},
+        {"fieldname": "debit", "label": _("Debit"), "fieldtype": "Currency", "hidden": 1},
+        {"fieldname": "credit", "label": _("Credit"), "fieldtype": "Currency", "hidden": 1},
+        {"fieldname": "balance", "label": _("Balance"), "fieldtype": "Currency", "width": 150},
+    ]
+
+
 def execute(filters=None):
     filters = filters or {}
     f_from_date = filters.get("from_date")

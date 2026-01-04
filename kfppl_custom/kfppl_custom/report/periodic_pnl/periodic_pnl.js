@@ -2,7 +2,8 @@
 // For license information, please see license.txt
 
 
-frappe.query_reports["Periodic Profit And Loss Statement With Multi Cost Center"] = {
+
+frappe.query_reports["Periodic PNL"] = {
   "filters": [
     {
       fieldname: "from_date",
